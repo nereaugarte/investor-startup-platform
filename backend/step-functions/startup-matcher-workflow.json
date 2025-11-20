@@ -1,0 +1,66 @@
+{
+  "Comment": "Startup matcher workflow (matcher + SES email)",
+  "StartAt": "MatchStartups",
+  "States": {
+    "MatchStartups": {
+      "Type": "Task",
+      "Resource": "${MatchStartupsLambdaArn}",
+      "Next": "CheckMatches",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "NoMatchesFound",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "CheckMatches": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.matchesFound",
+          "BooleanEquals": true,
+          "Next": "SendNotifications"
+        }
+      ],
+      "Default": "NoMatchesFound"
+    },
+    "SendNotifications": {
+      "Type": "Task",
+      "Resource": "${SendEmailLambdaArn}",
+      "End": true,
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "NoMatchesFound",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    "NoMatchesFound": {
+      "Type": "Pass",
+      "End": true,
+      "Result": {
+        "message": "No matches found for investor",
+        "matchesFound": false
+      }
+    }
+  }
+}
+

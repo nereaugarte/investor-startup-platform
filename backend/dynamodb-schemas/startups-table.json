@@ -1,0 +1,120 @@
+{
+  "TableName": "startup-investor-platform-dev-startups",
+  "Description": "Stores all startup information including details, funding, and metadata",
+  "BillingMode": "PAY_PER_REQUEST",
+  "KeySchema": [
+    {
+      "AttributeName": "startup_id",
+      "KeyType": "HASH"
+    }
+  ],
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "startup_id",
+      "AttributeType": "S"
+    },
+    {
+      "AttributeName": "industry",
+      "AttributeType": "S"
+    },
+    {
+      "AttributeName": "funding_stage",
+      "AttributeType": "S"
+    }
+  ],
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "IndustryIndex",
+      "KeySchema": [
+        {
+          "AttributeName": "industry",
+          "KeyType": "HASH"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      },
+      "Description": "Enables querying startups by industry"
+    },
+    {
+      "IndexName": "FundingStageIndex",
+      "KeySchema": [
+        {
+          "AttributeName": "funding_stage",
+          "KeyType": "HASH"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      },
+      "Description": "Enables querying startups by funding stage"
+    }
+  ],
+  "TimeToLiveSpecification": {
+    "Enabled": true,
+    "AttributeName": "expiration_time"
+  },
+  "CommonAttributes": {
+    "startup_id": {
+      "Type": "String",
+      "Required": true,
+      "Description": "Unique identifier for the startup"
+    },
+    "name": {
+      "Type": "String",
+      "Required": true,
+      "Description": "Startup company name"
+    },
+    "industry": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Industry category (e.g., 'FinTech', 'AI')"
+    },
+    "funding_stage": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Funding stage (e.g., 'Seed', 'Series A')"
+    },
+    "description": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Startup description"
+    },
+    "location": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Geographic location"
+    },
+    "website": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Company website URL"
+    },
+    "funding_amount": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Total funding amount"
+    },
+    "founded_year": {
+      "Type": "Number",
+      "Required": false,
+      "Description": "Year the company was founded"
+    },
+    "team_size": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Number of employees"
+    },
+    "logo_url": {
+      "Type": "String",
+      "Required": false,
+      "Description": "URL to company logo in S3"
+    },
+    "expiration_time": {
+      "Type": "Number",
+      "Required": false,
+      "Description": "Unix timestamp for TTL expiration"
+    }
+  }
+}
+

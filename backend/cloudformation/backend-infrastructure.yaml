@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Startup Investor Platform'
+
+Resources:
+  InvestorsUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: startup-investor-platform-dev-investors
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+  InvestorsUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: web-client
+      UserPoolId: !Ref InvestorsUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+
+  StartupsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: startup-investor-platform-dev-startups
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: startup_id
+          AttributeType: S
+        - AttributeName: industry
+          AttributeType: S
+        - AttributeName: funding_stage
+          AttributeType: S
+      KeySchema:
+        - AttributeName: startup_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: IndustryIndex
+          KeySchema:
+            - AttributeName: industry
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: FundingStageIndex
+          KeySchema:
+            - AttributeName: funding_stage
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiration_time
+        Enabled: true
+
+  InvestorsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: startup-investor-platform-dev-investors
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: investor_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: investor_id
+          KeyType: HASH
+
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'startup-investor-platform-dev-assets-${AWS::AccountId}'
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: startup-investor-platform-dev-startup-matches
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: startup-investor-platform-dev-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'dynamodb:*'
+                Resource:
+                  - !GetAtt StartupsTable.Arn
+                  - !GetAtt InvestorsTable.Arn
+                  - !Sub '${StartupsTable.Arn}/index/*'
+              - Effect: Allow
+                Action: 's3:*'
+                Resource: !Sub '${AssetsBucket.Arn}/*'
+              - Effect: Allow
+                Action: 'sns:Publish'
+                Resource: !Ref SNSTopic
+              - Effect: Allow
+                Action:
+                  - 'ses:SendEmail'
+                  - 'ses:SendRawEmail'
+                Resource: '*'
+
+Outputs:
+  UserPoolId:
+    Value: !Ref InvestorsUserPool
+  UserPoolClientId:
+    Value: !Ref InvestorsUserPoolClient
+  StartupsTableName:
+    Value: !Ref StartupsTable
+  InvestorsTableName:
+    Value: !Ref InvestorsTable
+  BucketName:
+    Value: !Ref AssetsBucket
+  SNSTopicArn:
+    Value: !Ref SNSTopic
+  LambdaRoleArn:
+    Value: !GetAtt LambdaRole.Arn

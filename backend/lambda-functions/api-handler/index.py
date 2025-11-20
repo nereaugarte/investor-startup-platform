@@ -51,7 +51,7 @@ def lambda_handler(event, context):
             return get_investor(event)
         
         # Trigger matching endpoint
-        elif http_method == 'POST' and resource == '/trigger-matching':
+        elif http_method == 'POST' and (resource == '/trigger-matching' or resource == '/match-startups' or '/match-startups' in path):
             return trigger_matching(event)
         
         else:
@@ -185,18 +185,24 @@ def trigger_matching(event):
     lambda_client = boto3.client('lambda')
     
     try:
-        # Get investor_id from request body
+        # Get investor_id and email from request body
         body = json.loads(event.get('body', '{}'))
         investor_id = body.get('investor_id')
+        email = body.get('email')
         
-        print(f"Triggering matching for investor: {investor_id}")
+        print(f"Triggering matching for investor: {investor_id}, email: {email}")
         
         # Invoke the matching Lambda with proper payload format
+        # Pass both investor_id and email
+        payload = {'investor_id': investor_id}
+        if email:
+            payload['email'] = email
+        
         response = lambda_client.invoke(
             FunctionName='startup-investor-platform-dev-startup-matcher',
             InvocationType='RequestResponse',
             Payload=json.dumps({
-                'body': json.dumps({'investor_id': investor_id})
+                'body': json.dumps(payload)
             })
         )
         
@@ -214,5 +220,7 @@ def trigger_matching(event):
     
     except Exception as e:
         print(f"❌ Error triggering matching: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return cors_response(500, {'error': str(e)})
 

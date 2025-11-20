@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Step Functions State Machine for Startup Matching Workflow'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    Description: Environment name (dev, staging, prod)
+  
+  MatchStartupsLambdaArn:
+    Type: String
+    Description: ARN of the startup-matcher Lambda function
+    Default: ''
+  
+  SendEmailLambdaArn:
+    Type: String
+    Description: ARN of the send-email-notif Lambda function
+    Default: ''
+
+Resources:
+  # IAM Role for Step Functions
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'startup-investor-platform-${Environment}-stepfunctions-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: InvokeLambdaFunctions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource:
+                  - !Sub '${MatchStartupsLambdaArn}'
+                  - !Sub '${SendEmailLambdaArn}'
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:startup-investor-platform-${Environment}-startup-matcher'
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:startup-investor-platform-${Environment}-send-email-notif'
+
+  # Step Functions State Machine
+  StartupMatcherStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub 'startup-investor-platform-${Environment}-startup-matcher'
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Startup matcher workflow (matcher + SES email)",
+          "StartAt": "MatchStartups",
+          "States": {
+            "MatchStartups": {
+              "Type": "Task",
+              "Resource": "${MatchStartupsLambdaArn}",
+              "Next": "CheckMatches",
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "NoMatchesFound",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "CheckMatches": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.matchesFound",
+                  "BooleanEquals": true,
+                  "Next": "SendNotifications"
+                }
+              ],
+              "Default": "NoMatchesFound"
+            },
+            "SendNotifications": {
+              "Type": "Task",
+              "Resource": "${SendEmailLambdaArn}",
+              "End": true,
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "NoMatchesFound",
+                  "ResultPath": "$.error"
+                }
+              ]
+            },
+            "NoMatchesFound": {
+              "Type": "Pass",
+              "End": true,
+              "Result": {
+                "message": "No matches found for investor",
+                "matchesFound": false
+              }
+            }
+          }
+        }
+      Logging:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
+
+  # CloudWatch Log Group for Step Functions
+  StepFunctionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/stepfunctions/startup-investor-platform-${Environment}-startup-matcher'
+      RetentionInDays: 7
+
+Outputs:
+  StateMachineArn:
+    Description: ARN of the Step Functions state machine
+    Value: !Ref StartupMatcherStateMachine
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineArn'
+  
+  StateMachineName:
+    Description: Name of the Step Functions state machine
+    Value: !Ref StartupMatcherStateMachine
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineName'
+  
+  StepFunctionsRoleArn:
+    Description: IAM Role ARN for Step Functions
+    Value: !GetAtt StepFunctionsRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-StepFunctionsRoleArn'
+

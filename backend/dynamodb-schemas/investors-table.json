@@ -1,0 +1,82 @@
+{
+  "TableName": "startup-investor-platform-dev-investors",
+  "Description": "Stores investor profiles, preferences, recommendations, and bookmarks",
+  "BillingMode": "PAY_PER_REQUEST",
+  "KeySchema": [
+    {
+      "AttributeName": "investor_id",
+      "KeyType": "HASH"
+    }
+  ],
+  "AttributeDefinitions": [
+    {
+      "AttributeName": "investor_id",
+      "AttributeType": "S"
+    }
+  ],
+  "CommonAttributes": {
+    "investor_id": {
+      "Type": "String",
+      "Required": true,
+      "Description": "Unique identifier (usually email or Cognito username)"
+    },
+    "email": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Investor email address"
+    },
+    "name": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Investor full name"
+    },
+    "preferred_industries": {
+      "Type": "List<String>",
+      "Required": false,
+      "Description": "Array of preferred industry categories"
+    },
+    "preferred_funding_stages": {
+      "Type": "List<String>",
+      "Required": false,
+      "Description": "Array of preferred funding stages (e.g., ['Seed', 'Series A'])"
+    },
+    "recommendations": {
+      "Type": "List<Object>",
+      "Required": false,
+      "Description": "Array of recommended startups with match scores",
+      "Structure": {
+        "startup_id": "String",
+        "name": "String",
+        "industry": "String",
+        "funding_stage": "String",
+        "match_score": "Number"
+      }
+    },
+    "bookmarks": {
+      "Type": "List<String>",
+      "Required": false,
+      "Description": "Array of bookmarked startup IDs"
+    },
+    "daily_recommendations": {
+      "Type": "Boolean",
+      "Required": false,
+      "Description": "Whether investor wants daily automated recommendations"
+    },
+    "preferred_time": {
+      "Type": "String",
+      "Required": false,
+      "Description": "Preferred time for daily recommendations (timezone-aware)"
+    },
+    "last_matched": {
+      "Type": "String",
+      "Required": false,
+      "Description": "ISO timestamp of last matching run"
+    },
+    "created_at": {
+      "Type": "String",
+      "Required": false,
+      "Description": "ISO timestamp when profile was created"
+    }
+  }
+}
+
