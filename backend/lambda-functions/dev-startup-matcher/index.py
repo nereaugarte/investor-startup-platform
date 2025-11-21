@@ -21,23 +21,46 @@ def lambda_handler(event, context):
     startups_table = dynamodb.Table(STARTUPS_TABLE)
     investors_table = dynamodb.Table(INVESTORS_TABLE)
     
+    # DEBUG: Print entire event
+    print(f"=== FULL EVENT ===")
+    print(json.dumps(event, default=str))
+    print(f"==================")
+    
     # Check if specific investor requested (from API call)
     requested_investor_id = None
-    if event.get('body'):
+    
+    # Try multiple ways to extract the body
+    body = None
+    if 'body' in event and event['body']:
+        # API Gateway sends body as string
         try:
             body = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
-            requested_investor_id = body.get('investor_id')
-            print(f"Matching requested for specific investor: {requested_investor_id}")
-        except:
-            pass
+            print(f"✅ Parsed body from event['body']: {body}")
+        except Exception as e:
+            print(f"❌ Error parsing event['body']: {str(e)}")
+    elif 'investor_id' in event or 'email' in event:
+        # Direct Lambda invocation or Step Functions
+        body = event
+        print(f"✅ Using event directly as body: {body}")
+    
+    if body:
+        requested_investor_id = body.get('investor_id') or body.get('email')
+        print(f"✅ Matching requested for specific investor: {requested_investor_id}")
+    else:
+        print(f"⚠️  No body in event - will process ALL investors")
+    
+    print(f"🎯 FILTERING FOR: {requested_investor_id if requested_investor_id else 'ALL INVESTORS'}")
     
     # Get all investors
     investors_response = investors_table.scan()
     investors = investors_response.get('Items', [])
     
-    # Filter to specific investor if requested
+    # Filter to specific investor if requested (CASE-INSENSITIVE - FIXED)
     if requested_investor_id:
-        investors = [inv for inv in investors if inv.get('investor_id') == requested_investor_id or inv.get('email') == requested_investor_id]
+        requested_investor_id_lower = requested_investor_id.lower()
+        investors = [inv for inv in investors 
+                     if inv.get('investor_id', '').lower() == requested_investor_id_lower or 
+                        inv.get('email', '').lower() == requested_investor_id_lower]
         print(f"Filtered to {len(investors)} investor(s)")
     
     if not investors:
